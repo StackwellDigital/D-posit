@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useState } from 'react';
 import QRCode from 'qrcode.react';
 import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import Nav from '../../components/Nav';
 import styles from '../../styles/App.module.css';
 
@@ -43,10 +44,17 @@ const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue, qrSecre
     setCompleting(true);
     setError('');
     try {
+      // Fetch fresh secret at click time to avoid SSR race condition
+      const { data: freshData } = await supabase
+        .from('transactions')
+        .select('qr_code_secret')
+        .eq('id', transaction.id)
+        .single();
+
       const res = await fetch('/api/complete-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: transaction.id, qrSecret: qrSecret }),
+        body: JSON.stringify({ transactionId: transaction.id, qrSecret: freshData?.qr_code_secret }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to complete');
@@ -115,18 +123,20 @@ const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue, qrSecre
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const id = params?.id as string;
-  const supabase = createClient(
+  const supabaseServer = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseServer
     .from('transactions')
     .select('id, item_name, full_amount, deposit_amount, status, qr_code_secret')
     .eq('id', id)
     .single();
 
   if (error || !data) return { props: { transaction: null, qrValue: '', qrSecret: '' } };
+
+  console.log('transaction status:', data.status, 'qr_code_secret:', data.qr_code_secret);
 
   const isPaid = data.status === 'deposit_paid' || data.status === 'completed';
 
