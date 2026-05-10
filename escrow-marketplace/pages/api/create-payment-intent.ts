@@ -48,7 +48,7 @@ export default async function handler(
     // Update transaction with buyer
     await supabase
       .from('transactions')
-      .update({ buyer_id: buyer.id })
+      .update({ buyer_id: buyer?.id })
       .eq('id', transactionId)
 
     // Create Stripe payment intent
