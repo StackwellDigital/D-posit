@@ -13,6 +13,15 @@ export const config = {
   },
 }
 
+async function getRawBody(req: NextApiRequest): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk) => chunks.push(Buffer.from(chunk)))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -22,20 +31,18 @@ export default async function handler(
   }
 
   const sig = req.headers['stripe-signature']!
-  const body = req.body
+  const rawBody = await getRawBody(req)
 
   try {
     const event = stripe.webhooks.constructEvent(
-      body,
+      rawBody,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET!
     )
 
     if (event.type === 'payment_intent.succeeded') {
       const paymentIntent = event.data.object as Stripe.PaymentIntent
-      const transactionId = paymentIntent.metadata.transactionId
 
-      // Update transaction status
       await supabase
         .from('transactions')
         .update({
@@ -44,7 +51,7 @@ export default async function handler(
         })
         .eq('stripe_payment_intent_id', paymentIntent.id)
 
-      console.log(`Deposit paid for transaction ${transactionId}`)
+      console.log(`Deposit paid for PI ${paymentIntent.id}`)
     }
 
     res.status(200).json({ received: true })
