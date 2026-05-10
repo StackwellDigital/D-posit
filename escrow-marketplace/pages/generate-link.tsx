@@ -1,211 +1,169 @@
-// pages/generate-link.tsx
-import { useState } from 'react'
-import { useRouter } from 'next/router'
-import { supabase } from '@/lib/supabase'
+import type { NextPage } from 'next';
+import Head from 'next/head';
+import { useState } from 'react';
+import Nav from '../components/Nav';
+import styles from '../styles/App.module.css';
 
-export default function GenerateLink() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
-  const [depositAmount, setDepositAmount] = useState('')
-  const [fullAmount, setFullAmount] = useState('')
-  const [description, setDescription] = useState('')
-  const [generatedLink, setGeneratedLink] = useState('')
+const GenerateLink: NextPage = () => {
+  const [itemName, setItemName] = useState('');
+  const [sellerEmail, setSellerEmail] = useState('');
+  const [fullPrice, setFullPrice] = useState('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [generatedUrl, setGeneratedUrl] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setGeneratedLink('')
+  const remainder = () => {
+    const f = parseFloat(fullPrice) || 0;
+    const d = parseFloat(depositAmount) || 0;
+    const r = f - d;
+    return r > 0 ? `$${r.toFixed(2)} remaining balance` : 'remaining balance';
+  };
 
-    try {
-      // Get or create seller user
-      let { data: seller } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email)
-        .single()
-
-      if (!seller) {
-        const { data: newSeller } = await supabase
-          .from('users')
-          .insert({ email })
-          .select()
-          .single()
-        seller = newSeller
-      }
-
-      // Create a transaction record (no listing needed)
-      const { data: transaction } = await supabase
-        .from('transactions')
-        .insert({
-          seller_id: seller.id,
-          deposit_amount: Math.round(parseFloat(depositAmount) * 100),
-          full_amount: Math.round(parseFloat(fullAmount) * 100),
-          status: 'pending',
-          qr_code_secret: Math.random().toString(36).substring(2, 15),
-        })
-        .select()
-        .single()
-
-      // Generate shareable link
-      const shareLink = `${process.env.NEXT_PUBLIC_APP_URL}/pay/${transaction.id}`
-      setGeneratedLink(shareLink)
-    } catch (error) {
-      console.error('Error generating link:', error)
-      alert('Failed to generate link')
-    } finally {
-      setLoading(false)
+  const handleGenerate = async () => {
+    if (!itemName || !sellerEmail || !fullPrice || !depositAmount) {
+      setError('Please fill in all fields.');
+      return;
     }
-  }
+    setError('');
+    setLoading(true);
+    try {
+      const res = await fetch('/api/create-payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemName,
+          sellerEmail,
+          fullAmount: Math.round(parseFloat(fullPrice) * 100),
+          depositAmount: Math.round(parseFloat(depositAmount) * 100),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create link');
+      const url = `${window.location.origin}/pay/${data.transactionId}`;
+      setGeneratedUrl(url);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedUrl).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleReset = () => {
+    setGeneratedUrl('');
+    setItemName('');
+    setSellerEmail('');
+    setFullPrice('');
+    setDepositAmount('');
+    setCopied(false);
+    setError('');
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg shadow p-8 mb-8">
-          <h1 className="text-3xl font-bold mb-2">D'Posit - Generate Deposit Link</h1>
-          <p className="text-gray-600">
-            Create a secure deposit link and send it to your buyer. Works with any platform.
-          </p>
+    <>
+      <Head>
+        <title>Generate Link — D&apos;Posit</title>
+      </Head>
+      <Nav />
+      <div className={styles.appWrap}>
+        <div className={styles.appHeader}>
+          <h2>Generate a deposit link</h2>
+          <p>Set your price and deposit amount. Share the link with your buyer.</p>
         </div>
 
-        {!generatedLink ? (
-          <div className="bg-white rounded-lg shadow p-8">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Your Email
-                </label>
+        {!generatedUrl ? (
+          <div>
+            <div className={styles.formGroup}>
+              <label>Item name</label>
+              <input
+                type="text"
+                placeholder="e.g. 2018 Trek FX3 — black, size M"
+                value={itemName}
+                onChange={e => setItemName(e.target.value)}
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Your email</label>
+              <input
+                type="email"
+                placeholder="you@email.com"
+                value={sellerEmail}
+                onChange={e => setSellerEmail(e.target.value)}
+              />
+              <div className={styles.formHint}>We&apos;ll notify you when the deposit is paid.</div>
+            </div>
+            <div className={styles.formGroup}>
+              <label>Full asking price</label>
+              <div className={styles.inputWrap}>
+                <span className={styles.currency}>$</span>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="your@email.com"
+                  type="number"
+                  className="has-currency"
+                  placeholder="450"
+                  value={fullPrice}
+                  onChange={e => setFullPrice(e.target.value)}
                 />
-                <p className="text-xs text-gray-500 mt-1">We'll use this to pay you</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Deposit Amount ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="100"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">What buyer pays now</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Amount ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={fullAmount}
-                    onChange={(e) => setFullAmount(e.target.value)}
-                    required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="800"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Total item price</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Item Description (optional)
-                </label>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="e.g., iPhone 14, mint condition"
-                />
-                <p className="text-xs text-gray-500 mt-1">Shows to buyer (optional)</p>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-blue-600 text-white py-3 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 transition"
-              >
-                {loading ? 'Generating...' : 'Generate Deposit Link'}
-              </button>
-            </form>
-          </div>
-        ) : (
-          <div className="space-y-6">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-8">
-              <h2 className="text-2xl font-bold text-green-900 mb-4">✓ Link Generated!</h2>
-              <p className="text-green-800 mb-6">
-                Send this link to your buyer via text, email, messenger, or paste in your listing.
-              </p>
-
-              <div className="bg-white border-2 border-green-300 rounded-lg p-4 mb-4">
-                <p className="text-xs text-gray-500 mb-2">Your Secure Link:</p>
-                <code className="text-sm font-mono break-all text-blue-600">
-                  {generatedLink}
-                </code>
-              </div>
-
-              <div className="flex gap-2 flex-col sm:flex-row">
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(generatedLink)
-                    alert('Link copied to clipboard!')
-                  }}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md font-medium hover:bg-blue-700"
-                >
-                  Copy Link
-                </button>
-                <button
-                  onClick={() => {
-                    const text = `I'm selling an item and using D'Posit for secure payment. Here's the deposit link: ${generatedLink}`
-                    window.open(`sms:?body=${encodeURIComponent(text)}`, '_blank')
-                  }}
-                  className="flex-1 bg-green-600 text-white py-2 px-4 rounded-md font-medium hover:bg-green-700"
-                >
-                  Send via SMS
-                </button>
-              </div>
-
-              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-bold text-blue-900 mb-2">What happens next:</h3>
-                <ol className="list-decimal list-inside text-sm text-blue-800 space-y-2">
-                  <li>Buyer clicks your link</li>
-                  <li>They enter their email and pay the deposit securely via Stripe</li>
-                  <li>You get notified that they've paid</li>
-                  <li>Meet up at agreed time to complete the transaction</li>
-                  <li>Buyer scans QR code to release remaining payment to you</li>
-                </ol>
               </div>
             </div>
-
-            <button
-              onClick={() => {
-                setGeneratedLink('')
-                setEmail('')
-                setDepositAmount('')
-                setFullAmount('')
-                setDescription('')
-              }}
-              className="w-full bg-gray-200 text-gray-900 py-2 rounded-md font-medium hover:bg-gray-300"
-            >
-              Generate Another Link
+            <div className={styles.formGroup}>
+              <label>Deposit amount</label>
+              <div className={styles.inputWrap}>
+                <span className={styles.currency}>$</span>
+                <input
+                  type="number"
+                  className="has-currency"
+                  placeholder="50"
+                  value={depositAmount}
+                  onChange={e => setDepositAmount(e.target.value)}
+                />
+              </div>
+              <div className={styles.formHint}>Typically 10–20% of asking price. Buyer pays remainder at meetup.</div>
+            </div>
+            <div className={styles.feeNote}>
+              Buyer pays the deposit now via Stripe. The <strong>{remainder()}</strong> is collected at meetup — cash or your preferred method.
+            </div>
+            {error && <div className={styles.errorMsg}>{error}</div>}
+            <button className={styles.fullBtn} onClick={handleGenerate} disabled={loading}>
+              {loading ? 'Creating...' : 'Generate link →'}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className={styles.successRow}>
+              <div className={styles.successIcon}>✓</div>
+              <div>
+                <div className={styles.successTitle}>Link created</div>
+                <div className={styles.successSub}>Share this with your buyer</div>
+              </div>
+            </div>
+            <div className={styles.linkBox}>
+              <div className={styles.linkLabel}>Your deposit link</div>
+              <div className={styles.linkUrl}>{generatedUrl}</div>
+              <button
+                className={`${styles.copyBtn} ${copied ? styles.copied : ''}`}
+                onClick={handleCopy}
+              >
+                {copied ? 'Copied!' : 'Copy link'}
+              </button>
+            </div>
+            <div className={styles.feeNote} style={{ marginTop: 16 }}>
+              Paste this link anywhere — your FB listing, Kijiji ad, or send it directly via DM.
+            </div>
+            <button className={`${styles.fullBtn} ${styles.secondary}`} style={{ marginTop: 16 }} onClick={handleReset}>
+              Create another link
             </button>
           </div>
         )}
       </div>
-    </div>
-  )
-}
+    </>
+  );
+};
+
+export default GenerateLink;

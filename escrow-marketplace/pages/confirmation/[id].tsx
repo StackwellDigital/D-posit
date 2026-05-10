@@ -1,123 +1,148 @@
-// pages/confirmation/[id].tsx
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/router'
-import QRCode from 'qrcode.react'
-import { supabase } from '@/lib/supabase'
+import type { NextPage, GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { useState } from 'react';
+import QRCode from 'qrcode.react';
+import { createClient } from '@supabase/supabase-js';
+import Nav from '../../components/Nav';
+import styles from '../../styles/App.module.css';
 
-export default function ConfirmationPage() {
-  const router = useRouter()
-  const { id, qrSecret } = router.query
-  const [transaction, setTransaction] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [completed, setCompleted] = useState(false)
+interface ConfirmPageProps {
+  transaction: {
+    id: string;
+    item_name: string;
+    full_amount: number;
+    deposit_amount: number;
+    status: string;
+  } | null;
+  qrValue: string;
+}
 
-  useEffect(() => {
-    if (!id) return
+const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue }) => {
+  const [completing, setCompleting] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState('');
 
-    const fetchTransaction = async () => {
-      const { data } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('id', id)
-        .single()
-      setTransaction(data)
-      setLoading(false)
-    }
+  if (!transaction) {
+    return (
+      <>
+        <Nav />
+        <div className={styles.appWrap}>
+          <div className={styles.appHeader}>
+            <h2>Transaction not found</h2>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-    fetchTransaction()
-  }, [id])
+  const depositDollars = (transaction.deposit_amount / 100).toFixed(2);
+  const remainderDollars = ((transaction.full_amount - transaction.deposit_amount) / 100).toFixed(2);
 
   const handleComplete = async () => {
+    setCompleting(true);
+    setError('');
     try {
       const res = await fetch('/api/complete-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId: id,
-          qrSecret,
-        }),
-      })
-
-      if (res.ok) {
-        setCompleted(true)
-        // Refresh transaction status
-        const { data } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('id', id)
-          .single()
-        setTransaction(data)
-      } else {
-        alert('Failed to complete transaction')
-      }
-    } catch (error) {
-      console.error('Error completing transaction:', error)
-      alert('Error completing transaction')
+        body: JSON.stringify({ transactionId: transaction.id, qrSecret: qrValue }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to complete');
+      setCompleted(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setCompleting(false);
     }
+  };
+
+  if (completed || transaction.status === 'completed') {
+    return (
+      <>
+        <Head><title>Complete — D&apos;Posit</title></Head>
+        <Nav />
+        <div className={styles.confirmWrap}>
+          <div className={styles.successIconLg}>✓</div>
+          <h2>Transaction complete</h2>
+          <p>Funds have been released. Enjoy your item!</p>
+          <div className={styles.txId}>Transaction ID: {transaction.id} · <span className={styles.statusComplete}>completed</span></div>
+        </div>
+      </>
+    );
   }
 
-  if (loading) return <div className="p-4">Loading...</div>
-  if (!transaction) return <div className="p-4">Transaction not found</div>
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-md mx-auto bg-white rounded-lg shadow p-8">
-        <h1 className="text-2xl font-bold mb-6">Deposit Confirmed!</h1>
-
-        {transaction.status === 'deposit_paid' && (
-          <>
-            <p className="text-gray-600 mb-6">
-              Your deposit of ${(transaction.deposit_amount / 100).toFixed(2)} has been received.
-            </p>
-
-            <div className="bg-gray-50 p-6 rounded-lg mb-6 flex flex-col items-center">
-              <p className="text-sm font-medium text-gray-600 mb-4">
-                Show this QR code at pickup:
-              </p>
-              <QRCode
-                value={JSON.stringify({
-                  transactionId: transaction.id,
-                  qrSecret,
-                })}
-                size={256}
-                level="H"
-              />
-            </div>
-
-            <div className="space-y-2 mb-6 text-sm">
-              <p className="text-gray-600">
-                <span className="font-medium">Next Steps:</span>
-              </p>
-              <ol className="list-decimal list-inside text-gray-600 space-y-1">
-                <li>Meet the seller at the agreed time</li>
-                <li>Inspect the item</li>
-                <li>Ask the seller to scan the QR code</li>
-                <li>Payment will be released to seller</li>
-              </ol>
-            </div>
-
-            <button
-              onClick={handleComplete}
-              className="w-full bg-green-600 text-white py-2 rounded-md font-medium hover:bg-green-700"
-            >
-              Complete Transaction
-            </button>
-
-            <p className="text-xs text-gray-500 mt-4">
-              Only click this after the seller has scanned the QR code and you've received the item.
-            </p>
-          </>
-        )}
-
-        {transaction.status === 'completed' && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-800 font-medium">Transaction Complete!</p>
-            <p className="text-green-700 text-sm mt-2">
-              Payment of ${(transaction.full_amount / 100).toFixed(2)} has been released to the seller.
-            </p>
+    <>
+      <Head><title>Confirmation — D&apos;Posit</title></Head>
+      <Nav />
+      <div className={styles.confirmWrap}>
+        <div className={styles.successIconLg}>✓</div>
+        <h2>Deposit paid</h2>
+        <p>Show this QR code at the meetup to complete the transaction.</p>
+        <div className={styles.qrBox}>
+          <div className={styles.qrHolder}>
+            <QRCode value={qrValue} size={160} bgColor="#f0efe9" fgColor="#1a1a18" />
           </div>
-        )}
+          <div className={styles.qrLabel}>Scan to complete</div>
+          <div className={styles.qrDetails}>
+            <div className={styles.txItem}>
+              <span className={styles.txLabel}>Item</span>
+              <span className={styles.txVal}>{transaction.item_name}</span>
+            </div>
+            <div className={styles.txItem}>
+              <span className={styles.txLabel}>Deposit paid</span>
+              <span className={`${styles.txVal} ${styles.txGreen}`}>${depositDollars} ✓</span>
+            </div>
+            <div className={styles.txItem}>
+              <span className={styles.txLabel}>Due at meetup</span>
+              <span className={styles.txVal}>${remainderDollars}</span>
+            </div>
+          </div>
+        </div>
+        {error && <div className={styles.errorMsg}>{error}</div>}
+        <button className={styles.fullBtn} onClick={handleComplete} disabled={completing}>
+          {completing ? 'Completing...' : 'Complete transaction →'}
+        </button>
+        <div className={styles.txId}>
+          Transaction ID: {transaction.id} · <span className={styles.statusPaid}>deposit_paid</span>
+        </div>
       </div>
-    </div>
-  )
-}
+    </>
+  );
+};
+
+export const getServerSideProps: GetServerSideProps = async ({ params, query }) => {
+  const id = params?.id as string;
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, item_name, full_amount, deposit_amount, status, qr_code_secret')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) return { props: { transaction: null, qrValue: '' } };
+
+  // Only expose QR value if deposit is paid
+  const qrValue = data.status === 'deposit_paid' || data.status === 'completed'
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/complete-transaction?id=${id}&secret=${data.qr_code_secret}`
+    : '';
+
+  return {
+    props: {
+      transaction: {
+        id: data.id,
+        item_name: data.item_name,
+        full_amount: data.full_amount,
+        deposit_amount: data.deposit_amount,
+        status: data.status,
+      },
+      qrValue,
+    },
+  };
+};
+
+export default ConfirmPage;

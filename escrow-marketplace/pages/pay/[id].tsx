@@ -1,173 +1,174 @@
-// pages/pay/[id].tsx
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/router'
-import { loadStripe } from '@stripe/stripe-js'
-import {
-  Elements,
-  CardElement,
-  useStripe,
-  useElements,
-} from '@stripe/react-stripe-js'
-import { supabase } from '@/lib/supabase'
+import type { NextPage, GetServerSideProps } from 'next';
+import Head from 'next/head';
+import { useState } from 'react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { createClient } from '@supabase/supabase-js';
+import Nav from '../../components/Nav';
+import styles from '../../styles/App.module.css';
 
-const stripePromise = loadStripe(
-  process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
-)
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
-function CheckoutForm({ transactionId, depositAmount }: { transactionId: string; depositAmount: number }) {
-  const router = useRouter()
-  const stripe = useStripe()
-  const elements = useElements()
-  const [loading, setLoading] = useState(false)
-  const [email, setEmail] = useState('')
-  const [error, setError] = useState('')
+interface PayPageProps {
+  transaction: {
+    id: string;
+    item_name: string;
+    full_amount: number;
+    deposit_amount: number;
+    status: string;
+    stripe_payment_intent_client_secret: string;
+  } | null;
+  error?: string;
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+function CheckoutForm({ transactionId }: { transactionId: string }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [buyerEmail, setBuyerEmail] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-    try {
-      // Create payment intent
-      const res = await fetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactionId,
-          buyerEmail: email,
-          depositAmount,
-        }),
-      })
-
-      const { clientSecret, qrSecret } = await res.json()
-
-      // Confirm payment
-      const { error: stripeError } = await stripe!.confirmCardPayment(
-        clientSecret,
-        {
-          payment_method: {
-            card: elements!.getElement(CardElement)!,
-            billing_details: { email },
-          },
-        }
-      )
-
-      if (stripeError) {
-        setError(stripeError.message!)
-        return
-      }
-
-      // Success - redirect to confirmation page
-      router.push(`/confirmation/${transactionId}?qrSecret=${qrSecret}`)
-    } catch (err) {
-      setError('Payment failed')
-      console.error(err)
-    } finally {
-      setLoading(false)
+  const handleSubmit = async () => {
+    if (!stripe || !elements) return;
+    if (!buyerEmail) { setError('Please enter your email.'); return; }
+    setLoading(true);
+    setError('');
+    const { error: stripeError } = await stripe.confirmPayment({
+      elements,
+      confirmParams: {
+        return_url: `${window.location.origin}/confirmation/${transactionId}`,
+        receipt_email: buyerEmail,
+      },
+    });
+    if (stripeError) {
+      setError(stripeError.message || 'Payment failed.');
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Your Email
-        </label>
+    <div>
+      <div className={styles.stripeWrap}>
+        <div className={styles.stripeLabel}>Card details</div>
+        <PaymentElement />
+      </div>
+      <div className={styles.formGroup} style={{ marginTop: 20 }}>
+        <label>Your email</label>
         <input
           type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="your@email.com"
+          placeholder="buyer@email.com"
+          value={buyerEmail}
+          onChange={e => setBuyerEmail(e.target.value)}
         />
+        <div className={styles.formHint}>Confirmation sent here after payment.</div>
       </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          Card Details
-        </label>
-        <div className="border border-gray-300 rounded-md p-3">
-          <CardElement />
-        </div>
-      </div>
-
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-
-      <button
-        type="submit"
-        disabled={loading || !stripe}
-        className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50"
-      >
-        {loading ? 'Processing...' : `Pay Deposit ($${(depositAmount / 100).toFixed(2)})`}
+      {error && <div className={styles.errorMsg}>{error}</div>}
+      <button className={styles.fullBtn} onClick={handleSubmit} disabled={loading || !stripe}>
+        {loading ? 'Processing...' : `Pay $${depositDollars} deposit →`}
       </button>
-    </form>
-  )
+      <div className={styles.secureNote}>Secured by Stripe · Refundable if seller cancels</div>
+    </div>
+  );
 }
 
-export default function PayPage() {
-  const router = useRouter()
-  const { id } = router.query
-  const [transaction, setTransaction] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+const PayPage: NextPage<PayPageProps> = ({ transaction, error }) => {
+  if (error || !transaction) {
+    return (
+      <>
+        <Nav />
+        <div className={styles.appWrap}>
+          <div className={styles.appHeader}>
+            <h2>Link not found</h2>
+            <p>This deposit link is invalid or has expired.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-  useEffect(() => {
-    if (!id) return
+  if (transaction.status !== 'pending') {
+    return (
+      <>
+        <Nav />
+        <div className={styles.appWrap}>
+          <div className={styles.appHeader}>
+            <h2>Already paid</h2>
+            <p>This deposit has already been paid.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
 
-    const fetchTransaction = async () => {
-      const { data } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('id', id)
-        .single()
-      setTransaction(data)
-      setLoading(false)
-    }
-
-    fetchTransaction()
-  }, [id])
-
-  if (loading) return <div className="p-4 text-center">Loading...</div>
-  if (!transaction) return <div className="p-4 text-center">Transaction not found</div>
+  const depositDollars = (transaction.deposit_amount / 100).toFixed(2);
+  const fullDollars = (transaction.full_amount / 100).toFixed(2);
+  const remainderDollars = ((transaction.full_amount - transaction.deposit_amount) / 100).toFixed(2);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
-      <div className="max-w-md mx-auto">
-        <div className="bg-white rounded-lg shadow p-8 mb-8">
-          <h1 className="text-2xl font-bold mb-4">Secure Deposit</h1>
-          
-          <div className="space-y-3 mb-6">
-            <div className="flex justify-between pb-3 border-b">
-              <span className="text-gray-600">Deposit Amount:</span>
-              <span className="font-bold text-lg">
-                ${(transaction.deposit_amount / 100).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Total Item Price:</span>
-              <span className="text-gray-700">
-                ${(transaction.full_amount / 100).toFixed(2)}
-              </span>
-            </div>
+    <>
+      <Head>
+        <title>Pay Deposit — D&apos;Posit</title>
+      </Head>
+      <Nav />
+      <div className={styles.appWrap}>
+        <div className={styles.appHeader}>
+          <h2>Pay deposit</h2>
+          <p>Secure your purchase. The deposit holds the item until you meet.</p>
+        </div>
+        <div className={styles.txCard}>
+          <div className={styles.txItem}>
+            <span className={styles.txLabel}>Item</span>
+            <span className={styles.txVal}>{transaction.item_name}</span>
           </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-900">
-              ✓ Your deposit is held securely until you both confirm the transaction
-            </p>
+          <div className={styles.txItem}>
+            <span className={styles.txLabel}>Full price</span>
+            <span className={styles.txVal}>${fullDollars}</span>
+          </div>
+          <div className={styles.txItem}>
+            <span className={styles.txLabel}>Deposit due now</span>
+            <span className={`${styles.txVal} ${styles.txDeposit}`}>${depositDollars}</span>
+          </div>
+          <div className={styles.txItem}>
+            <span className={styles.txLabel}>Remainder at meetup</span>
+            <span className={styles.txVal} style={{ color: 'var(--muted)' }}>${remainderDollars}</span>
           </div>
         </div>
-
-        <div className="bg-white rounded-lg shadow p-8">
-          <h2 className="text-xl font-bold mb-6">Pay with Card</h2>
-          <Elements stripe={stripePromise}>
-            <CheckoutForm 
-              transactionId={id as string} 
-              depositAmount={transaction.deposit_amount}
-            />
-          </Elements>
-        </div>
+        <Elements
+          stripe={stripePromise}
+          options={{
+            clientSecret: transaction.stripe_payment_intent_client_secret,
+            appearance: {
+              theme: 'stripe',
+              variables: {
+                fontFamily: 'DM Sans, sans-serif',
+                borderRadius: '10px',
+                colorText: '#1a1a18',
+                colorBackground: '#ffffff',
+              },
+            },
+          }}
+        >
+          <CheckoutForm transactionId={transaction.id} />
+        </Elements>
       </div>
-    </div>
-  )
-}
+    </>
+  );
+};
+
+export const getServerSideProps: GetServerSideProps = async ({ params }) => {
+  const id = params?.id as string;
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('id, item_name, full_amount, deposit_amount, status, stripe_payment_intent_client_secret')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) return { props: { transaction: null, error: 'Not found' } };
+  return { props: { transaction: data } };
+};
+
+export default PayPage;

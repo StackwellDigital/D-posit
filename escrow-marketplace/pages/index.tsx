@@ -1,75 +1,89 @@
-// pages/index.tsx
-import Link from 'next/link'
+import type { NextPage } from 'next';
+import Head from 'next/head';
+import Link from 'next/link';
+import Nav from '../components/Nav';
+import styles from '../styles/Home.module.css';
 
-export default function Home() {
+const Home: NextPage = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-600 to-blue-800 text-white">
-      <div className="max-w-4xl mx-auto px-4 py-20">
-        <h1 className="text-5xl font-bold mb-6">D'Posit - Escrow for Any Deal</h1>
-        <p className="text-xl mb-12 opacity-90">
-          Found an item on Facebook Marketplace? Kijiji? Craigslist? Secure the deposit with D'Posit. Works with any platform.
-        </p>
+    <>
+      <Head>
+        <title>D&apos;Posit — Escrow for used goods</title>
+        <meta name="description" content="Add a deposit link to any listing. Buyers commit, sellers show up. No scams, no no-shows." />
+      </Head>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-          <Link href="/generate-link">
-            <div className="bg-white text-gray-900 rounded-lg p-8 cursor-pointer hover:shadow-lg transition">
-              <h2 className="text-2xl font-bold mb-4">I'm Selling</h2>
-              <p className="text-gray-600 mb-6">
-                Generate a secure deposit link. Send to buyers on any platform. Get paid when they show up.
-              </p>
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-md font-medium hover:bg-blue-700">
-                Generate Link
-              </button>
-            </div>
-          </Link>
+      <Nav />
 
-          <div className="bg-white text-gray-900 rounded-lg p-8">
-            <h2 className="text-2xl font-bold mb-4">I'm Buying</h2>
-            <p className="text-gray-600 mb-6">
-              Seller sent you a D'Posit link? Paste it below to securely pay the deposit.
-            </p>
-            <input
-              type="text"
-              placeholder="Paste your D'Posit link or code"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md mb-4"
-            />
-            <button className="w-full bg-blue-600 text-white px-6 py-2 rounded-md font-medium hover:bg-blue-700">
-              Pay Deposit
+      <main>
+        {/* Hero */}
+        <section className={styles.hero}>
+          <div className={styles.badge}>platform-agnostic escrow</div>
+          <h1>Sell anything,<br /><strong>meet safely.</strong></h1>
+          <p>Add a deposit link to any listing — Facebook, Kijiji, Craigslist. Buyers commit, sellers show up. No scams, no no-shows.</p>
+          <div className={styles.actions}>
+            <Link href="/generate-link">
+              <button className={styles.btnPrimary}>Create a free link</button>
+            </Link>
+            <button className={styles.btnGhost} onClick={() => document.getElementById('how')?.scrollIntoView({ behavior: 'smooth' })}>
+              See how it works
             </button>
           </div>
-        </div>
+        </section>
 
-        <div className="bg-blue-700 rounded-lg p-8">
-          <h2 className="text-2xl font-bold mb-6">How D'Posit Works</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div className="text-3xl font-bold mb-2">1</div>
-              <h3 className="font-bold mb-2">Share a Link</h3>
-              <p className="opacity-90">Seller generates deposit link, sends to buyer (SMS, email, messenger)</p>
+        {/* How it works */}
+        <section className={styles.how} id="how">
+          <div className={styles.sectionLabel}>How it works</div>
+          <div className={styles.steps}>
+            <div className={styles.step}>
+              <div className={styles.stepNum}>01</div>
+              <h3>Set your deposit</h3>
+              <p>Enter your asking price and deposit amount. Get a shareable link in seconds.</p>
             </div>
-            <div>
-              <div className="text-3xl font-bold mb-2">2</div>
-              <h3 className="font-bold mb-2">Buyer Pays</h3>
-              <p className="opacity-90">Buyer clicks link, securely pays deposit via Stripe</p>
+            <div className={styles.step}>
+              <div className={styles.stepNum}>02</div>
+              <h3>Buyer pays deposit</h3>
+              <p>They pay via Stripe — no account needed. Funds are held securely until meetup.</p>
             </div>
-            <div>
-              <div className="text-3xl font-bold mb-2">3</div>
-              <h3 className="font-bold mb-2">Meet & Release</h3>
-              <p className="opacity-90">At pickup, scan QR code. Funds release to seller instantly</p>
+            <div className={styles.step}>
+              <div className={styles.stepNum}>03</div>
+              <h3>Scan to complete</h3>
+              <p>At the meetup, scan the QR code. Transaction completes, funds are released.</p>
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="mt-12 bg-gray-800 rounded-lg p-8 text-center">
-          <h3 className="text-2xl font-bold mb-4">Works With Everything</h3>
-          <p className="mb-6 opacity-90">
-            Facebook Marketplace • Kijiji • Craigslist • OfferUp • Local Instagram • Text Message
-          </p>
-          <p className="text-sm opacity-75">
-            Found an item anywhere? Use D'Posit to secure it.
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
+        {/* Trust */}
+        <section className={styles.trust}>
+          <div className={styles.sectionLabel}>Why D&apos;Posit</div>
+          <div className={styles.trustGrid}>
+            <div className={styles.trustCard}>
+              <h4>Works everywhere</h4>
+              <p>Paste your link into any listing. FB Marketplace, Kijiji, Craigslist — doesn&apos;t matter.</p>
+            </div>
+            <div className={styles.trustCard}>
+              <h4>Stripe-secured</h4>
+              <p>All payments handled by Stripe. PCI compliant, bank-grade encryption, zero card data on our end.</p>
+            </div>
+            <div className={styles.trustCard}>
+              <h4>No account needed</h4>
+              <p>Buyers pay instantly. Sellers just generate a link. No friction, no sign-up walls.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Band */}
+        <section className={styles.ctaBand}>
+          <div className={styles.ctaInner}>
+            <h2>Ready to sell with confidence?</h2>
+            <p>Free to use. Takes 30 seconds to set up.</p>
+            <Link href="/generate-link">
+              <button className={styles.btnWhite}>Create your first link</button>
+            </Link>
+          </div>
+        </section>
+      </main>
+    </>
+  );
+};
+
+export default Home;
