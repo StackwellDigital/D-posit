@@ -15,9 +15,10 @@ interface ConfirmPageProps {
     status: string;
   } | null;
   qrValue: string;
+  qrSecret: string;
 }
 
-const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue }) => {
+const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue, qrSecret }) => {
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [error, setError] = useState('');
@@ -45,7 +46,7 @@ const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue }) => {
       const res = await fetch('/api/complete-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transactionId: transaction.id, qrSecret: qrValue }),
+        body: JSON.stringify({ transactionId: transaction.id, qrSecret: qrSecret }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to complete');
@@ -82,7 +83,7 @@ const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue }) => {
         <p>Show this QR code at the meetup to complete the transaction.</p>
         <div className={styles.qrBox}>
           <div className={styles.qrHolder}>
-            <QRCode value={qrValue} size={160} bgColor="#f0efe9" fgColor="#1a1a18" />
+            <QRCode value={qrValue || 'pending'} size={160} bgColor="#f0efe9" fgColor="#1a1a18" />
           </div>
           <div className={styles.qrLabel}>Scan to complete</div>
           <div className={styles.qrDetails}>
@@ -112,24 +113,28 @@ const ConfirmPage: NextPage<ConfirmPageProps> = ({ transaction, qrValue }) => {
   );
 };
 
-export const getServerSideProps: GetServerSideProps = async ({ params, query }) => {
+export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const id = params?.id as string;
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
+
   const { data, error } = await supabase
     .from('transactions')
     .select('id, item_name, full_amount, deposit_amount, status, qr_code_secret')
     .eq('id', id)
     .single();
 
-  if (error || !data) return { props: { transaction: null, qrValue: '' } };
+  if (error || !data) return { props: { transaction: null, qrValue: '', qrSecret: '' } };
 
-  // Only expose QR value if deposit is paid
-  const qrValue = data.status === 'deposit_paid' || data.status === 'completed'
-    ? `${process.env.NEXT_PUBLIC_APP_URL}/api/complete-transaction?id=${id}&secret=${data.qr_code_secret}`
+  const isPaid = data.status === 'deposit_paid' || data.status === 'completed';
+
+  const qrValue = isPaid
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/confirmation/${id}`
     : '';
+
+  const qrSecret = isPaid ? data.qr_code_secret : '';
 
   return {
     props: {
@@ -141,6 +146,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params, query }) 
         status: data.status,
       },
       qrValue,
+      qrSecret,
     },
   };
 };
