@@ -1,0 +1,99 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #fafaf8);
+  padding: 2rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border: 1px solid #e8e8e4;
+  border-radius: 12px;
+  padding: 2.5rem;
+}
+
+.title {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #1a1a18;
+  margin: 0 0 0.5rem;
+}
+
+.sub {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.95rem;
+  color: #555;
+  margin: 0 0 1.75rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1a1a18;
+  margin-top: 0.75rem;
+}
+
+.input {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.input:focus {
+  border-color: #1a1a18;
+}
+
+.error {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: #c0392b;
+  margin: 0.25rem 0 0;
+}
+
+.btn {
+  margin-top: 1.25rem;
+  padding: 0.75rem;
+  background: #1a1a18;
+  color: #fff;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1rem;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.footer {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  color: #555;
+  text-align: center;
+  margin: 1.5rem 0 0;
+}
+
+.footer a {
+  color: #1a1a18;
+  font-weight: 500;
+}
