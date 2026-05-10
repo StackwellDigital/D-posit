@@ -21,7 +21,7 @@ interface PayPageProps {
   error?: string;
 }
 
-function CheckoutForm({ transactionId }: { transactionId: string }) {
+function CheckoutForm({ transactionId, depositDollars }: { transactionId: string, depositDollars: string }) {
   const stripe = useStripe();
   const elements = useElements();
   const [buyerEmail, setBuyerEmail] = useState('');
@@ -148,7 +148,7 @@ const PayPage: NextPage<PayPageProps> = ({ transaction, error }) => {
             },
           }}
         >
-          <CheckoutForm transactionId={transaction.id} />
+          <CheckoutForm transactionId={transaction.id} depositDollars={depositDollars} />
         </Elements>
       </div>
     </>
