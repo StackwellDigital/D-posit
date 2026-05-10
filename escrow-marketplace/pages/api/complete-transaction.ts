@@ -12,6 +12,8 @@ export default async function handler(
 
   try {
     const { transactionId, qrSecret } = req.body
+    console.log('received qrSecret:', qrSecret)
+    console.log('db qr_code_secret:', transaction?.qr_code_secret)
 
     const { data: transaction } = await supabase
       .from('transactions')
