@@ -13,13 +13,14 @@ export default async function handler(
   try {
     const { transactionId, qrSecret } = req.body
     console.log('received qrSecret:', qrSecret)
-    console.log('db qr_code_secret:', transaction?.qr_code_secret)
 
     const { data: transaction } = await supabase
       .from('transactions')
       .select('*')
       .eq('id', transactionId)
       .single()
+
+    console.log('db qr_code_secret:', transaction?.qr_code_secret)
 
     if (!transaction) {
       return res.status(404).json({ error: 'Transaction not found' })
