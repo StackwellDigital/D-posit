@@ -1,18 +1,34 @@
 import type { NextPage } from 'next';
 import Head from 'next/head';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/router';
 import Nav from '../components/Nav';
 import styles from '../styles/App.module.css';
+import { supabase } from '@/lib/supabase';
 
 const GenerateLink: NextPage = () => {
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState('');
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [itemName, setItemName] = useState('');
-  const [sellerEmail, setSellerEmail] = useState('');
   const [fullPrice, setFullPrice] = useState('');
   const [depositAmount, setDepositAmount] = useState('');
   const [generatedUrl, setGeneratedUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.replace('/login');
+      } else {
+        setUserEmail(session.user.email ?? '');
+        setAuthLoading(false);
+      }
+    });
+  }, [router]);
 
   const remainder = () => {
     const f = parseFloat(fullPrice) || 0;
@@ -22,7 +38,7 @@ const GenerateLink: NextPage = () => {
   };
 
   const handleGenerate = async () => {
-    if (!itemName || !sellerEmail || !fullPrice || !depositAmount) {
+    if (!itemName || !fullPrice || !depositAmount) {
       setError('Please fill in all fields.');
       return;
     }
@@ -34,7 +50,7 @@ const GenerateLink: NextPage = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           itemName,
-          sellerEmail,
+          sellerEmail: userEmail,
           fullAmount: Math.round(parseFloat(fullPrice) * 100),
           depositAmount: Math.round(parseFloat(depositAmount) * 100),
         }),
@@ -59,12 +75,13 @@ const GenerateLink: NextPage = () => {
   const handleReset = () => {
     setGeneratedUrl('');
     setItemName('');
-    setSellerEmail('');
     setFullPrice('');
     setDepositAmount('');
     setCopied(false);
     setError('');
   };
+
+  if (authLoading) return null;
 
   return (
     <>
@@ -88,16 +105,6 @@ const GenerateLink: NextPage = () => {
                 value={itemName}
                 onChange={e => setItemName(e.target.value)}
               />
-            </div>
-            <div className={styles.formGroup}>
-              <label>Your email</label>
-              <input
-                type="email"
-                placeholder="you@email.com"
-                value={sellerEmail}
-                onChange={e => setSellerEmail(e.target.value)}
-              />
-              <div className={styles.formHint}>We&apos;ll notify you when the deposit is paid.</div>
             </div>
             <div className={styles.formGroup}>
               <label>Full asking price</label>
@@ -127,7 +134,7 @@ const GenerateLink: NextPage = () => {
               <div className={styles.formHint}>Typically 10–20% of asking price. Buyer pays remainder at meetup.</div>
             </div>
             <div className={styles.feeNote}>
-              Buyer pays the deposit now via Stripe. The <strong>{remainder()}</strong> is collected at meetup — cash or your preferred method.
+              Buyer pays the deposit now via Stripe. The <strong>{remainder()}</strong> is collected at meetup.
             </div>
             {error && <div className={styles.errorMsg}>{error}</div>}
             <button className={styles.fullBtn} onClick={handleGenerate} disabled={loading}>
