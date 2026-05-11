@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const paymentIntent = await stripe.paymentIntents.create({
       amount: depositAmount,
       currency: 'usd',
-      metadata: { itemName, sellerEmail: user.email },
+      metadata: { itemName, sellerEmail: user.email ?? '' },
     })
 
     // Create transaction row
