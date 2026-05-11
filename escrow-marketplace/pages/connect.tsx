@@ -1,3 +1,4 @@
+// pages/connect.tsx
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Head from 'next/head'
@@ -5,45 +6,64 @@ import Nav from '@/components/Nav'
 import { supabase } from '@/lib/supabase'
 import styles from '@/styles/App.module.css'
 
+type ConnectStatus = 'loading' | 'not_started' | 'pending' | 'complete'
+
 export default function ConnectPage() {
   const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [alreadyConnected, setAlreadyConnected] = useState(false)
-  const { error } = router.query
+  const [status, setStatus] = useState<ConnectStatus>('loading')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     const check = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/login'); return }
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('stripe_connect_id')
-        .eq('id', session.user.id)
-        .single()
+      const res = await fetch('/api/connect-status', {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      const data = await res.json()
 
-      setAlreadyConnected(!!profile?.stripe_connect_id)
-      setLoading(false)
+      if (!data.connected) setStatus('not_started')
+      else if (data.chargesEnabled) setStatus('complete')
+      else setStatus('pending')
     }
     check()
   }, [])
 
   const handleConnect = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return
+    setError('')
+    setLoading(true)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/login'); return }
 
-    const params = new URLSearchParams({
-      response_type: 'code',
-      client_id: process.env.NEXT_PUBLIC_STRIPE_CONNECT_CLIENT_ID!,
-      scope: 'read_write',
-      redirect_uri: `${window.location.origin}/api/stripe-connect-callback`,
-      state: session.user.id,
-    })
+      // Step 1 — create express account if needed
+      const accountRes = await fetch('/api/create-connect-account', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      const accountData = await accountRes.json()
+      if (!accountRes.ok) throw new Error(accountData.error)
 
-    window.location.href = `https://connect.stripe.com/oauth/authorize?${params}`
+      // Step 2 — get onboarding link
+      const linkRes = await fetch('/api/create-account-link', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      })
+      const linkData = await linkRes.json()
+      if (!linkRes.ok) throw new Error(linkData.error)
+
+      // Step 3 — redirect to Stripe onboarding
+      window.location.href = linkData.url
+
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong')
+      setLoading(false)
+    }
   }
 
-  if (loading) return null
+  if (status === 'loading') return null
 
   return (
     <>
@@ -53,24 +73,27 @@ export default function ConnectPage() {
       <Nav />
       <div className={styles.appWrap}>
         <div className={styles.appHeader}>
-          <h2>{alreadyConnected ? 'Stripe connected' : 'Connect your Stripe account'}</h2>
-          <p>
-            {alreadyConnected
-              ? "You're all set. Payments will be sent directly to your Stripe account."
-              : "D'Posit pays you directly when a transaction completes. Connect your Stripe account to get started."}
-          </p>
+          {status === 'complete' && <h2>Stripe connected ✓</h2>}
+          {status === 'pending' && <h2>Finish setting up Stripe</h2>}
+          {status === 'not_started' && <h2>Connect your Stripe account</h2>}
+
+          {status === 'complete' && (
+            <p>You're all set. Payments go directly to your connected account.</p>
+          )}
+          {status === 'pending' && (
+            <p>Your Stripe account isn't fully set up yet. Complete onboarding to start accepting payments.</p>
+          )}
+          {status === 'not_started' && (
+            <p>Set up a free Stripe account to receive payments directly. Takes about 2 minutes.</p>
+          )}
         </div>
 
-        {error && (
-          <div className={styles.errorMsg}>
-            Something went wrong during Stripe setup. Please try again.
-          </div>
-        )}
+        {error && <div className={styles.errorMsg}>{error}</div>}
 
-        {alreadyConnected ? (
+        {status === 'complete' && (
           <>
             <div className={styles.feeNote}>
-              <strong>✓ Stripe account linked.</strong> Deposit and remainder payments will transfer directly to your connected account after each completed transaction.
+              <strong>✓ Stripe account active.</strong> Deposit and remainder payments transfer directly to your bank after each completed transaction.
             </div>
             <button className={styles.fullBtn} onClick={() => router.push('/generate-link')}>
               Generate a deposit link →
@@ -79,17 +102,20 @@ export default function ConnectPage() {
               className={`${styles.fullBtn} ${styles.secondary}`}
               style={{ marginTop: 12 }}
               onClick={handleConnect}
+              disabled={loading}
             >
-              Reconnect Stripe account
+              {loading ? 'Loading...' : 'Reconnect Stripe account'}
             </button>
           </>
-        ) : (
+        )}
+
+        {(status === 'not_started' || status === 'pending') && (
           <>
             <div className={styles.feeNote}>
-              You'll be redirected to Stripe to authorize D'Posit to send payments to your account. This takes about 2 minutes.
+              No existing Stripe account needed — we'll create one for you and walk you through setup. Your bank details stay between you and Stripe.
             </div>
-            <button className={styles.fullBtn} onClick={handleConnect}>
-              Connect with Stripe →
+            <button className={styles.fullBtn} onClick={handleConnect} disabled={loading}>
+              {loading ? 'Setting up...' : status === 'pending' ? 'Continue Stripe setup →' : 'Set up Stripe payments →'}
             </button>
           </>
         )}
