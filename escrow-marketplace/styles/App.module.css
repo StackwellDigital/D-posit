@@ -344,4 +344,58 @@
   .confirmWrap {
     padding: 40px 16px;
   }
+
+  /* PIN system */
+.pinBox {
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  margin: 1.5rem 0;
+}
+
+.pinLabel {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.pinCode {
+  font-family: var(--mono);
+  font-size: 2.75rem;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.3em;
+}
+
+.pinHint {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 0.75rem;
+  line-height: 1.5;
+}
+
+.pinInput {
+  font-family: var(--mono);
+  font-size: 1.75rem;
+  letter-spacing: 0.25em;
+  text-align: center;
+  padding: 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  outline: none;
+  background: #fff;
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.pinInput:focus {
+  border-color: var(--text);
+}
 }
