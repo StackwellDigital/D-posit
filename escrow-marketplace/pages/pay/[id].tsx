@@ -29,22 +29,35 @@ function CheckoutForm({ transactionId, depositDollars }: { transactionId: string
   const [error, setError] = useState('');
 
   const handleSubmit = async () => {
-    if (!stripe || !elements) return;
-    if (!buyerEmail) { setError('Please enter your email.'); return; }
-    setLoading(true);
-    setError('');
-    const { error: stripeError } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/confirmation/${transactionId}`,
-        receipt_email: buyerEmail,
-      },
+  if (!stripe || !elements) return;
+  if (!buyerEmail) { setError('Please enter your email.'); return; }
+  setLoading(true);
+  setError('');
+
+  // Save buyer email to transaction before redirecting
+  try {
+    await fetch('/api/save-buyer-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transactionId, buyerEmail }),
     });
-    if (stripeError) {
-      setError(stripeError.message || 'Payment failed.');
-      setLoading(false);
-    }
-  };
+  } catch (_) {
+    // non-blocking — don't fail payment over this
+  }
+
+  const { error: stripeError } = await stripe.confirmPayment({
+    elements,
+    confirmParams: {
+      return_url: `${window.location.origin}/confirmation/${transactionId}`,
+      receipt_email: buyerEmail,
+    },
+  });
+
+  if (stripeError) {
+    setError(stripeError.message || 'Payment failed.');
+    setLoading(false);
+  }
+};
 
   return (
     <div>
