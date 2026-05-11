@@ -21,24 +21,26 @@ const GenerateLink: NextPage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.replace('/login'); return }
+  const init = async () => {
+    // Wait for session to restore after redirect
+    await new Promise(r => setTimeout(r, 500))
+    
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.replace('/login'); return }
 
-      setUserEmail(session.user.email ?? '')
+    setUserEmail(session.user.email ?? '')
 
-      // Check if seller has connected Stripe
-      const { data: profile } = await supabase
-        .from('users')
-        .select('stripe_connect_id')
-        .eq('id', session.user.id)
-        .single()
+    const { data: profile } = await supabase
+      .from('users')
+      .select('stripe_connect_id')
+      .eq('id', session.user.id)
+      .single()
 
-      setHasStripeConnect(!!profile?.stripe_connect_id)
-      setAuthLoading(false)
-    }
-    init()
-  }, [router]);
+    setHasStripeConnect(!!profile?.stripe_connect_id)
+    setAuthLoading(false)
+  }
+  init()
+}, [router])
 
   const remainder = () => {
     const f = parseFloat(fullPrice) || 0;
