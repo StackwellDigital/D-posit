@@ -10,7 +10,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    // Auth check — use service role to validate the user's JWT from cookie
     const supabaseServer = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -30,11 +29,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing required fields' })
     }
 
-    // Create Stripe PaymentIntent
+    // Fetch seller's Stripe Connect ID
+    const { data: sellerProfile, error: profileError } = await supabaseServer
+      .from('users')
+      .select('stripe_connect_id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !sellerProfile?.stripe_connect_id) {
+      return res.status(400).json({ error: 'Stripe account not connected' })
+    }
+
+    const stripeConnectId = sellerProfile.stripe_connect_id
+
+    // Create Stripe PaymentIntent with transfer_data
     const paymentIntent = await stripe.paymentIntents.create({
       amount: depositAmount,
       currency: 'usd',
       metadata: { itemName, sellerEmail: user.email ?? '' },
+      transfer_data: {
+        destination: stripeConnectId,
+      },
     })
 
     // Create transaction row
@@ -48,6 +63,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         deposit_amount: depositAmount,
         stripe_payment_intent_id: paymentIntent.id,
         stripe_payment_intent_client_secret: paymentIntent.client_secret,
+        stripe_connect_id: stripeConnectId,
         status: 'pending',
       })
       .select()
