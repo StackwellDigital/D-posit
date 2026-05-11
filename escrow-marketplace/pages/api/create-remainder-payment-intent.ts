@@ -19,12 +19,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const { data, error } = await supabase
     .from('transactions')
-    .select('full_amount, deposit_amount, item_name, status')
+    .select('full_amount, deposit_amount, item_name, status, stripe_connect_id')
     .eq('id', transactionId)
     .single()
 
   if (error || !data) return res.status(404).json({ error: 'Transaction not found' })
   if (data.status !== 'deposit_paid') return res.status(400).json({ error: 'Transaction not in correct state' })
+  if (!data.stripe_connect_id) return res.status(400).json({ error: 'Seller Stripe account not connected' })
 
   const remainder = data.full_amount - data.deposit_amount
   if (remainder <= 0) return res.status(400).json({ error: 'No remainder to collect' })
@@ -33,6 +34,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     amount: remainder,
     currency: 'usd',
     metadata: { transactionId, itemName: data.item_name },
+    transfer_data: {
+      destination: data.stripe_connect_id,
+    },
   })
 
   res.status(200).json({ clientSecret: paymentIntent.client_secret })
