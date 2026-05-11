@@ -10,6 +10,7 @@ const GenerateLink: NextPage = () => {
   const router = useRouter();
   const [userEmail, setUserEmail] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
+  const [hasStripeConnect, setHasStripeConnect] = useState(false);
 
   const [itemName, setItemName] = useState('');
   const [fullPrice, setFullPrice] = useState('');
@@ -20,14 +21,23 @@ const GenerateLink: NextPage = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.replace('/login');
-      } else {
-        setUserEmail(session.user.email ?? '');
-        setAuthLoading(false);
-      }
-    });
+    const init = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.replace('/login'); return }
+
+      setUserEmail(session.user.email ?? '')
+
+      // Check if seller has connected Stripe
+      const { data: profile } = await supabase
+        .from('users')
+        .select('stripe_connect_id')
+        .eq('id', session.user.id)
+        .single()
+
+      setHasStripeConnect(!!profile?.stripe_connect_id)
+      setAuthLoading(false)
+    }
+    init()
   }, [router]);
 
   const remainder = () => {
@@ -86,6 +96,27 @@ const GenerateLink: NextPage = () => {
   };
 
   if (authLoading) return null;
+
+  // Gate — seller must connect Stripe before generating links
+  if (!hasStripeConnect) {
+    return (
+      <>
+        <Head>
+          <title>Generate Link — D&apos;Posit</title>
+        </Head>
+        <Nav />
+        <div className={styles.appWrap}>
+          <div className={styles.appHeader}>
+            <h2>Connect your Stripe account</h2>
+            <p>You need to connect Stripe before you can generate deposit links. This is how you get paid.</p>
+          </div>
+          <button className={styles.fullBtn} onClick={() => router.push('/connect')}>
+            Connect with Stripe →
+          </button>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
