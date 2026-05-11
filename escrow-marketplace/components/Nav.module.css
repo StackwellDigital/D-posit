@@ -48,3 +48,24 @@
 .cta:hover {
   opacity: 0.88;
 }
+.navRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logout {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
+
+.logout:hover {
+  border-color: var(--text-primary);
+  color: var(--text-primary);
+}
